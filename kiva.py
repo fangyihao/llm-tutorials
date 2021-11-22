@@ -157,7 +157,7 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                 data = json.loads(row)
                 if self.config.name == "kiva":
                     yield {
-                        "loan_id": row[0]
+                        "loan_id": row[0],
                         "text": row[1],
                         "label": "" if split == "test" else row[2],
                     }
