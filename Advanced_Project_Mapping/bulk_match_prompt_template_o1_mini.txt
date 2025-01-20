@@ -1,0 +1,24 @@
+You are provided with two product list: one is the external product list, and the other is the internal product list.
+You are asked to create a table including all external products with the corresponding mapped internal product. If no match is found, the table should indicate NULL for the internal product. (Note: The match has to be exact, meaning the product manufacturer, name, and size must be identical.) 
+Only output the table and trim any excess whitespace from the table’s output.
+
+---
+Examples:  
+To help you understand our requirements, here are a few examples of correct and wrong matches:
+Correct Matches: 
+External_Product_Name 	Internal_Product_Name 
+DIET LIPTON GREEN TEA W/ CITRUS 20 OZ 	Lipton Diet Green Tea with Citrus (20oz) 
+CH-CHERRY CHS CLAW DANISH 4.25 OZ 	Cloverhill Cherry Cheese Bearclaw Danish (4.25oz) 
+
+Wrong Matches:
+External_Product_Name 	Internal_Product_Name 
+Hersheys Almond Milk Choco 1.6 oz 	Hersheys Milk Chocolate with Almonds (1.85oz) 
+COOKIE PEANUT BUTTER 2OZ 	Famous Amos Peanut Butter Cookie (2oz) 
+
+---
+External Product List:
+<external_product_list>
+
+---
+Internal Product List:
+<internal_product_list>

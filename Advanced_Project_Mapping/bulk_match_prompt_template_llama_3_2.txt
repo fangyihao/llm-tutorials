@@ -1,0 +1,14 @@
+You are asked to judge if the external product maps to an internal product. If it is a match, return TRUE, otherwise return FALSE. You are asked to provide a rationale, regardless of whether it is a match.
+Note: The match has to be exact, meaning the product manufacturer, name, and size must be identical.
+You may first normalize the long product name (e.g., DIET LIPTON GREEN TEA W/ CITRUS 20 OZ) into the manufacturer (e.g., LIPTON), name (e.g., DIET GREEN TEA WITH CITRUS), and size (e.g., 20 OZ). 
+Please do not show the source code and provide the output as a table.
+
+Here are some examples:
+External_Product	Internal_Product	Rationale	Result
+DIET LIPTON GREEN TEA W/ CITRUS 20 OZ	Lipton Diet Green Tea with Citrus (20oz)	Manufacturer Lipton matches, name Diet Green Tea with Citrus matches, size 20oz matches.	TRUE
+CH-CHERRY CHS CLAW DANISH 4.25 OZ	Cloverhill Cherry Cheese Bearclaw Danish (4.25oz)	Manufacturer Cloverhill (CH) matches, name Cherry Cheese Bearclaw Danish (CHERRY CHS CLAW DANISH) matches, size 4.25oz matches.	TRUE
+Hersheys Almond Milk Choco 1.6 oz	Hersheys Milk Chocolate with Almonds (1.85oz)	Size 1.6 oz and 1.85oz does not match.	FALSE
+COOKIE PEANUT BUTTER 2OZ	Famous Amos Peanut Butter Cookie (2oz)	Name does not match, one is butter, the other is cookie.	FALSE
+
+You are now asked to judge if the external product maps to an internal product or not:
+External_Product	Internal_Product	Rationale	Result
