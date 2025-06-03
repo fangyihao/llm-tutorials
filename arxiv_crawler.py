@@ -60,7 +60,92 @@ def setup_crawler(query, log_filename, download_dir):
         except:
             logger.exception("An error occurred while fetching papers.")
         time.sleep(3600*24)
-
+''' config.json
+{
+    "topics": [
+        {
+            "query": "large language models AND diffusion models",
+            "log_filename": "log/diffusion_models.log",
+            "download_dir": "paper/diffusion_models"
+        },
+        {
+            "query": "large language models AND reasoning",
+            "log_filename": "log/reasoning.log",
+            "download_dir": "paper/reasoning"
+        },
+        {
+            "query": "large language models AND video generation",
+            "log_filename": "log/video_generation.log",
+            "download_dir": "paper/video_generation"
+        },
+        {
+            "query": "large language models AND deep research",
+            "log_filename": "log/deep_research.log",
+            "download_dir": "paper/deep_research"
+        },
+        {
+            "query": "large language models AND peer review",
+            "log_filename": "log/peer_review.log",
+            "download_dir": "paper/peer_review"
+        },
+        {
+            "query": "large language models AND fact checking",
+            "log_filename": "log/fact_checking.log",
+            "download_dir": "paper/fact_checking"
+        },
+        {
+            "query": "large language models AND healthcare",
+            "log_filename": "log/healthcare.log",
+            "download_dir": "paper/healthcare"
+        },
+        {
+            "query": "large language models AND embodied intelligence",
+            "log_filename": "log/embodied_intelligence.log",
+            "download_dir": "paper/embodied_intelligence"
+        },
+        {
+            "query": "large language models AND autonomous driving",
+            "log_filename": "log/autonomous_driving.log",
+            "download_dir": "paper/autonomous_driving"
+        },
+        {
+            "query": "large language models AND drug discovery",
+            "log_filename": "log/drug_discovery.log",
+            "download_dir": "paper/drug_discovery"
+        },
+        {
+            "query": "large language models AND gaming",
+            "log_filename": "log/gaming.log",
+            "download_dir": "paper/gaming"
+        },
+        {
+            "query": "large language models AND quantization",
+            "log_filename": "log/quantization.log",
+            "download_dir": "paper/quantization"
+        },
+        {
+            "query": "large language models AND kv cache",
+            "log_filename": "log/kv_cache.log",
+            "download_dir": "paper/kv_cache"
+        },
+        {
+            "query": "large language models AND mixture of experts",
+            "log_filename": "log/mixture_of_experts.log",
+            "download_dir": "paper/mixture_of_experts"
+        },
+        {
+            "query": "large language models AND sparce attention",
+            "log_filename": "log/sparce_attention.log",
+            "download_dir": "paper/sparce_attention"
+        },
+        {
+            "query": "large language models AND multi-modalality",
+            "log_filename": "log/multi_modalality.log",
+            "download_dir": "paper/multi_modalality"
+        }
+    ]
+}
+'''
 def main():
     with open("config/config.json","r") as f:
         config = json.load(f)
