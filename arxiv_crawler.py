@@ -2,8 +2,10 @@ import arxiv
 import requests
 import time
 import json
-import multiprocessing
+import threading
 import os
+import logging
+
 # Function to fetch citation count from Semantic Scholar
 def get_citation_count(paper_title):
     api_url = "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -16,9 +18,8 @@ def get_citation_count(paper_title):
     return 0
 
 # Search arXiv for papers
-def search_arxiv(query):
+def search_arxiv(client, query):
     papers = []
-
     search = arxiv.Search(
         query=query,
         max_results=100,
@@ -26,7 +27,7 @@ def search_arxiv(query):
         sort_order=arxiv.SortOrder.Descending
     )
 
-    for result in search.results():
+    for result in client.results(search):
         citation_count = get_citation_count(result.title)
         papers.append({
             "title": result.title,
@@ -40,13 +41,24 @@ def search_arxiv(query):
 
     return papers
 
+def get_logger(log_filename):
+    logger = logging.getLogger(f"{__name__}_{log_filename}")
+    logger.setLevel(logging.INFO)
+    handler = logging.FileHandler(log_filename)
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+
+
 def setup_crawler(query, log_filename, download_dir):
-    import logging
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(filename=log_filename, level=logging.INFO)
+    # Construct the default API client.
+    client = arxiv.Client()
+    logger = get_logger(log_filename)
     while True:
         try:
-            results = search_arxiv(query)
+            results = search_arxiv(client, query)
             for paper in results:
                 logger.info(f"Title: {paper['title']}")
                 logger.info(f"Authors: {', '.join(paper['authors'])}")
@@ -56,113 +68,119 @@ def setup_crawler(query, log_filename, download_dir):
                 try:
                     paper["content"].download_pdf(dirpath=download_dir)
                 except:
-                    logger.exception(f"Failed to download PDF for {paper['title']}")
+                    print(f"Failed to download PDF for {paper['title']}")
         except:
-            logger.exception("An error occurred while fetching papers.")
+            print("An error occurred while fetching papers.")
         time.sleep(3600*24)
-''' config.json
-{
-    "topics": [
-        {
-            "query": "large language models AND diffusion models",
-            "log_filename": "log/diffusion_models.log",
-            "download_dir": "paper/diffusion_models"
-        },
-        {
-            "query": "large language models AND reasoning",
-            "log_filename": "log/reasoning.log",
-            "download_dir": "paper/reasoning"
-        },
-        {
-            "query": "large language models AND video generation",
-            "log_filename": "log/video_generation.log",
-            "download_dir": "paper/video_generation"
-        },
-        {
-            "query": "large language models AND deep research",
-            "log_filename": "log/deep_research.log",
-            "download_dir": "paper/deep_research"
-        },
-        {
-            "query": "large language models AND peer review",
-            "log_filename": "log/peer_review.log",
-            "download_dir": "paper/peer_review"
-        },
-        {
-            "query": "large language models AND fact checking",
-            "log_filename": "log/fact_checking.log",
-            "download_dir": "paper/fact_checking"
-        },
-        {
-            "query": "large language models AND healthcare",
-            "log_filename": "log/healthcare.log",
-            "download_dir": "paper/healthcare"
-        },
-        {
-            "query": "large language models AND embodied intelligence",
-            "log_filename": "log/embodied_intelligence.log",
-            "download_dir": "paper/embodied_intelligence"
-        },
-        {
-            "query": "large language models AND autonomous driving",
-            "log_filename": "log/autonomous_driving.log",
-            "download_dir": "paper/autonomous_driving"
-        },
-        {
-            "query": "large language models AND drug discovery",
-            "log_filename": "log/drug_discovery.log",
-            "download_dir": "paper/drug_discovery"
-        },
-        {
-            "query": "large language models AND gaming",
-            "log_filename": "log/gaming.log",
-            "download_dir": "paper/gaming"
-        },
-        {
-            "query": "large language models AND quantization",
-            "log_filename": "log/quantization.log",
-            "download_dir": "paper/quantization"
-        },
-        {
-            "query": "large language models AND kv cache",
-            "log_filename": "log/kv_cache.log",
-            "download_dir": "paper/kv_cache"
-        },
-        {
-            "query": "large language models AND mixture of experts",
-            "log_filename": "log/mixture_of_experts.log",
-            "download_dir": "paper/mixture_of_experts"
-        },
-        {
-            "query": "large language models AND sparce attention",
-            "log_filename": "log/sparce_attention.log",
-            "download_dir": "paper/sparce_attention"
-        },
-        {
-            "query": "large language models AND multi-modalality",
-            "log_filename": "log/multi_modalality.log",
-            "download_dir": "paper/multi_modalality"
-        }
-    ]
-}
-'''
+
 def main():
     with open("config/config.json","r") as f:
         config = json.load(f)
-    processes = []
+    threads = []
     for entry in config["topics"]:
         query = entry["query"]
+        print(f"Starting crawler for query: {query}", flush=True)
         log_filename = entry["log_filename"]
         download_dir = entry["download_dir"]
         os.makedirs(download_dir, exist_ok=True)
-        process = multiprocessing.Process(target=setup_crawler, args=(query, log_filename, download_dir))
-        process.daemon = True
-        process.start()
-        processes.append(process)
+        thread = threading.Thread(target=setup_crawler, args=(query, log_filename, download_dir))
+        thread.start()
+        threads.append(thread)
         time.sleep(3600)
-    for process in processes:
-        process.join()
+    for thread in threads:
+        thread.join()
 # Example usage
 if __name__ == "__main__":
     main()
 
+''' config.json
+{
+    "topics": [
+        {
+            "query": "all:\"diffusion models\"",
+            "log_filename": "log/diffusion_models.log",
+            "download_dir": "paper/diffusion_models"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:reasoning",
+            "log_filename": "log/reasoning.log",
+            "download_dir": "paper/reasoning"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:\"video generation\"",
+            "log_filename": "log/video_generation.log",
+            "download_dir": "paper/video_generation"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND (all:multi-modalality OR all:\"multi-modal\" OR all:\"multimodal\")",
+            "log_filename": "log/multi_modalality.log",
+            "download_dir": "paper/multi_modalality"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:\"deep research\"",
+            "log_filename": "log/deep_research.log",
+            "download_dir": "paper/deep_research"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND (all:\"peer review\" OR all:\"paper review\")",
+            "log_filename": "log/peer_review.log",
+            "download_dir": "paper/peer_review"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:\"code review\"",
+            "log_filename": "log/peer_review.log",
+            "download_dir": "paper/peer_review"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND (all:\"fact checking\" OR all:\"fact-checking\")",
+            "log_filename": "log/fact_checking.log",
+            "download_dir": "paper/fact_checking"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:healthcare",
+            "log_filename": "log/healthcare.log",
+            "download_dir": "paper/healthcare"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:\"embodied intelligence\"",
+            "log_filename": "log/embodied_intelligence.log",
+            "download_dir": "paper/embodied_intelligence"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:\"autonomous driving\"",
+            "log_filename": "log/autonomous_driving.log",
+            "download_dir": "paper/autonomous_driving"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND (all:\"drug discovery\" OR all:\"drug design\")",
+            "log_filename": "log/drug_discovery.log",
+            "download_dir": "paper/drug_discovery"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:gaming",
+            "log_filename": "log/gaming.log",
+            "download_dir": "paper/gaming"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:quantization",
+            "log_filename": "log/quantization.log",
+            "download_dir": "paper/quantization"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:\"kv cache\"",
+            "log_filename": "log/kv_cache.log",
+            "download_dir": "paper/kv_cache"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND (all:\"mixture of experts\" OR all:\"mixture-of-experts\")",
+            "log_filename": "log/mixture_of_experts.log",
+            "download_dir": "paper/mixture_of_experts"
+        },
+        {
+            "query": "(all:\"large language models\" OR all:\"diffusion models\") AND all:\"sparce attention\"",
+            "log_filename": "log/sparce_attention.log",
+            "download_dir": "paper/sparce_attention"
+        }
+    ]
+}
+'''
