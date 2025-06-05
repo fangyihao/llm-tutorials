@@ -74,7 +74,7 @@ def setup_crawler(query, log_filename, download_dir):
         time.sleep(3600*24)
 
 def main():
-    with open("config/config.json","r") as f:
+    with open("arxiv_crawler.cfg","r") as f:
         config = json.load(f)
     threads = []
     for entry in config["topics"]:
