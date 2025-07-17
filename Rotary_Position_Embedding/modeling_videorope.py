@@ -932,14 +932,6 @@ class Qwen2VLDecoderLayer(nn.Module):
 
         return outputs
 
-
-QWEN2VL_START_DOCSTRING = r""""""
-
-
-@add_start_docstrings(
-    "The bare Qwen2VL Model outputting raw hidden-states without any specific head on top.",
-    QWEN2VL_START_DOCSTRING,
-)
 class Qwen2VLPreTrainedModel(PreTrainedModel):
     config_class = Qwen2VLConfig
     base_model_prefix = "model"
@@ -1037,11 +1029,7 @@ class Qwen2VisionTransformerPretrainedModel(Qwen2VLPreTrainedModel):
 
         return self.merger(hidden_states)
 
-## mark
-@add_start_docstrings(
-    "The bare Qwen2VL Model outputting raw hidden-states without any specific head on top.",
-    QWEN2VL_START_DOCSTRING,
-)
+
 class Qwen2VLModel(Qwen2VLPreTrainedModel):
     def __init__(self, config: Qwen2VLConfig):
         super().__init__(config)
@@ -1248,11 +1236,6 @@ class Qwen2VLModel(Qwen2VLPreTrainedModel):
 
         return causal_mask
 
-
-QWEN2_VL_INPUTS_DOCSTRING = r""""""
-
-
-## mark
 class Qwen2VLForConditionalGeneration(Qwen2VLPreTrainedModel, GenerationMixin):
     _tied_weights_keys = ["lm_head.weight"]
 
@@ -1741,8 +1724,6 @@ class Qwen2VLForConditionalGeneration(Qwen2VLPreTrainedModel, GenerationMixin):
 
         return model_kwargs
 
-    @add_start_docstrings_to_model_forward(QWEN2_VL_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=Qwen2VLCausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids: torch.LongTensor = None,
