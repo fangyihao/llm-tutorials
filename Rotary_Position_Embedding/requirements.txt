@@ -113,8 +113,6 @@ latex2mathml==3.77.0
 lazy_loader==0.4
 librosa==0.10.2.post1
 lit==18.1.8
--e git+https://github.com/hiyouga/LLaMA-Factory.git@cde479e47a51beb60ab555cdee083c1cdba0ead6#egg=llamafactory
--e git+https://github.com/LLaVA-VL/LLaVA-NeXT.git@79ef45a6d8b89b92d7a8525f077c3a3a9894a87d#egg=llava
 llvmlite==0.43.0
 lm-format-enforcer==0.10.6
 markdown-it-py==3.0.0
@@ -226,7 +224,7 @@ requests==2.32.3
 rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1
 rich==13.9.2
-ring-flash-attn @ git+https://github.com/zhuzilin/ring-flash-attention@01c8baf5eafc95c1a255690bcdb5359b600d765a
+ring-flash-attn
 rouge-chinese==1.0.3
 rpds-py==0.20.0
 ruff==0.7.0
