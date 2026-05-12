@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI News Hub</title>
+  <style>
+    /* ── Theme tokens ─────────────────────────────────────── */
+    :root[data-theme="dark"] {
+      --bg:           #07070f;
+      --bg2:          #0e0e1c;
+      --card:         rgba(255,255,255,.04);
+      --card-border:  rgba(255,255,255,.08);
+      --card-hover:   rgba(255,255,255,.07);
+      --text:         #e2e8f0;
+      --text2:        #94a3b8;
+      --muted:        #475569;
+      --hdr:          rgba(7,7,15,.85);
+      --inp:          rgba(255,255,255,.06);
+      --inp-border:   rgba(255,255,255,.1);
+      --skel:         rgba(255,255,255,.06);
+      --skel-sh:      rgba(255,255,255,.11);
+    }
+    :root[data-theme="light"] {
+      --bg:           #f1f5f9;
+      --bg2:          #e2e8f0;
+      --card:         #ffffff;
+      --card-border:  rgba(0,0,0,.08);
+      --card-hover:   #f8fafc;
+      --text:         #0f172a;
+      --text2:        #475569;
+      --muted:        #94a3b8;
+      --hdr:          rgba(241,245,249,.9);
+      --inp:          #ffffff;
+      --inp-border:   rgba(0,0,0,.12);
+      --skel:         rgba(0,0,0,.06);
+      --skel-sh:      rgba(0,0,0,.10);
+    }
+
+    /* ── Reset ────────────────────────────────────────────── */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background .3s, color .3s;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--hdr);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--card-border);
+    }
+    .hdr-inner {
+      max-width: 1400px; margin: 0 auto;
+      padding: 0 24px; height: 64px;
+      display: flex; align-items: center; gap: 20px;
+    }
+
+    .logo { display:flex; align-items:center; gap:10px; text-decoration:none; flex-shrink:0; }
+    .logo-mark {
+      width:34px; height:34px; border-radius:10px;
+      background: linear-gradient(135deg,#6366f1,#a855f7);
+      display:flex; align-items:center; justify-content:center;
+      font-size:17px; box-shadow: 0 0 20px rgba(99,102,241,.4);
+    }
+    .logo-name {
+      font-size:17px; font-weight:700;
+      background: linear-gradient(135deg,#6366f1,#a855f7);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+
+    .search-wrap { flex:1; max-width:380px; position:relative; }
+    .search-wrap svg {
+      position:absolute; left:11px; top:50%; transform:translateY(-50%);
+      color:var(--muted); pointer-events:none;
+    }
+    #search {
+      width:100%; padding:8px 12px 8px 36px;
+      background:var(--inp); border:1px solid var(--inp-border);
+      border-radius:9px; color:var(--text); font-size:14px; outline:none;
+      transition:border-color .2s;
+    }
+    #search:focus { border-color:#6366f1; }
+    #search::placeholder { color:var(--muted); }
+
+    .hdr-btns { margin-left:auto; display:flex; gap:10px; }
+    .icon-btn {
+      display:flex; align-items:center; gap:6px;
+      padding:7px 12px; border-radius:9px; font-size:13px; font-weight:500;
+      border:1px solid var(--inp-border); background:var(--inp);
+      color:var(--text2); cursor:pointer; transition:all .2s;
+    }
+    .icon-btn:hover { border-color:#6366f1; color:#6366f1; }
+    .icon-btn.spinning svg { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Main ─────────────────────────────────────────────── */
+    main { max-width:1400px; margin:0 auto; padding:32px 24px; }
+
+    .meta-row {
+      display:flex; align-items:center; gap:16px;
+      font-size:13px; color:var(--muted); margin-bottom:22px;
+      flex-wrap:wrap;
+    }
+    .meta-chip {
+      display:flex; align-items:center; gap:5px;
+      background:var(--card); border:1px solid var(--card-border);
+      border-radius:100px; padding:4px 12px; font-size:12px; color:var(--text2);
+    }
+    .dot { width:6px; height:6px; border-radius:50%; background:#22c55e; }
+    .dot.loading { background:#f59e0b; animation:pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Tabs ─────────────────────────────────────────────── */
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:28px; }
+    .tab {
+      display:flex; align-items:center; gap:6px;
+      padding:7px 16px; border-radius:100px;
+      border:1px solid var(--card-border); background:transparent;
+      color:var(--text2); font-size:13px; font-weight:500; cursor:pointer;
+      transition:all .2s;
+    }
+    .tab:hover { border-color:#6366f1; color:#6366f1; }
+    .tab.active { background:rgba(99,102,241,.15); border-color:#6366f1; color:#6366f1; }
+    .tab-n {
+      background:rgba(99,102,241,.2); color:#818cf8;
+      border-radius:100px; padding:1px 7px; font-size:11px; font-weight:700;
+    }
+
+    /* ── Trending strip ───────────────────────────────────── */
+    .section-label {
+      font-size:11px; font-weight:700; letter-spacing:.1em;
+      text-transform:uppercase; color:var(--muted); margin-bottom:14px;
+    }
+    .trending-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+      margin-bottom:36px;
+    }
+    @media(max-width:900px){ .trending-grid{ grid-template-columns:1fr; } }
+
+    .trend-card {
+      position:relative; overflow:hidden;
+      background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(168,85,247,.07));
+      border:1px solid rgba(99,102,241,.22); border-radius:16px;
+      padding:20px; display:flex; flex-direction:column; gap:10px;
+      text-decoration:none; color:inherit; cursor:pointer;
+      transition:all .25s;
+    }
+    .trend-card::after {
+      content:''; position:absolute; top:-60px; right:-60px;
+      width:180px; height:180px;
+      background:radial-gradient(circle,rgba(168,85,247,.15),transparent 70%);
+      pointer-events:none;
+    }
+    .trend-card:hover { transform:translateY(-3px); border-color:rgba(99,102,241,.45); }
+    .trend-rank { font-size:11px; font-weight:700; color:#818cf8; letter-spacing:.06em; text-transform:uppercase; }
+    .trend-title { font-size:14px; font-weight:600; line-height:1.55; color:var(--text); }
+    .trend-meta { display:flex; gap:12px; font-size:12px; color:var(--muted); margin-top:auto; }
+
+    /* ── News grid ────────────────────────────────────────── */
+    #newsGrid {
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+      gap:14px;
+    }
+    .news-card {
+      background:var(--card); border:1px solid var(--card-border); border-radius:13px;
+      padding:18px; display:flex; flex-direction:column; gap:10px;
+      text-decoration:none; color:inherit; cursor:pointer;
+      transition:all .2s;
+    }
+    .news-card:hover {
+      background:var(--card-hover); border-color:rgba(99,102,241,.3);
+      transform:translateY(-1px);
+    }
+    .card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .badge {
+      font-size:10px; font-weight:700; padding:3px 9px; border-radius:100px;
+      white-space:nowrap; flex-shrink:0; letter-spacing:.04em;
+    }
+    .card-title {
+      font-size:14px; font-weight:600; line-height:1.55; color:var(--text);
+      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .card-foot {
+      display:flex; align-items:center; gap:10px;
+      font-size:12px; color:var(--muted); margin-top:auto; flex-wrap:wrap;
+    }
+    .card-foot-item { display:flex; align-items:center; gap:3px; }
+    .domain { color:#818cf8; font-weight:500; }
+
+    /* ── Skeleton ─────────────────────────────────────────── */
+    .skel-card {
+      background:var(--card); border:1px solid var(--card-border);
+      border-radius:13px; padding:18px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .skel {
+      background:var(--skel); border-radius:5px;
+      position:relative; overflow:hidden;
+    }
+    .skel::after {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(90deg,transparent,var(--skel-sh),transparent);
+      animation:shimmer 1.6s infinite;
+    }
+    @keyframes shimmer { from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+
+    /* ── Empty / Error ────────────────────────────────────── */
+    .center-msg { text-align:center; padding:80px 24px; color:var(--muted); }
+    .center-msg h3 { font-size:18px; margin-bottom:8px; color:var(--text2); }
+
+    /* ── Toast ────────────────────────────────────────────── */
+    #toast {
+      position:fixed; bottom:24px; right:24px; z-index:999;
+      background:var(--card); border:1px solid var(--card-border);
+      backdrop-filter:blur(20px); border-radius:10px;
+      padding:12px 18px; font-size:13px; color:var(--text2);
+      transform:translateY(80px); opacity:0; transition:all .3s ease;
+      pointer-events:none;
+    }
+    #toast.show { transform:translateY(0); opacity:1; }
+
+    /* ── Source filter chips ──────────────────────────────── */
+    .source-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+    .src-chip {
+      display:flex; align-items:center; gap:5px;
+      padding:5px 12px; border-radius:100px; font-size:12px; font-weight:500;
+      border:1px solid var(--card-border); background:var(--card);
+      color:var(--text2); cursor:pointer; transition:all .2s;
+    }
+    .src-chip:hover { filter:brightness(1.15); border-color:currentColor; }
+    .src-chip.active { font-weight:700; }
+    .src-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media(max-width:640px){
+      .hdr-inner { padding:0 16px; }
+      .search-wrap { display:none; }
+      main { padding:20px 16px; }
+      #newsGrid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-inner">
+    <a href="#" class="logo" onclick="return false">
+      <div class="logo-mark">⚡</div>
+      <span class="logo-name">AI News Hub</span>
+    </a>
+    <div class="search-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input id="search" type="text" placeholder="Search stories…" autocomplete="off" />
+    </div>
+    <div class="hdr-btns">
+      <button class="icon-btn" id="refreshBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Refresh
+      </button>
+      <button class="icon-btn" id="themeBtn" title="Toggle theme">
+        <svg id="themeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="meta-row" id="metaRow">
+    <div class="meta-chip"><span class="dot loading" id="statusDot"></span><span id="statusText">Fetching latest AI news…</span></div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="sourceChips" class="source-row"></div>
+
+  <div id="trendingSection">
+    <div class="section-label">🔥 Trending now</div>
+    <div class="trending-grid" id="trendingGrid"></div>
+  </div>
+
+  <div class="section-label" style="margin-bottom:14px" id="gridLabel">All Stories</div>
+  <div id="newsGrid"></div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+/* ── Sources ────────────────────────────────────────────── */
+const SOURCES = {
+  anthropic: { name:'Anthropic',   short:'Anthropic', color:'#cc785c', bg:'rgba(204,120,92,.15)' },
+  xcom:      { name:'X (Twitter)', short:'X',         color:'#64748b', bg:'rgba(100,116,139,.18)' },
+  hn:        { name:'HackerNews',  short:'HN',        color:'#f97316', bg:'rgba(249,115,22,.13)' },
+  devto:     { name:'DEV.to',      short:'DEV.to',    color:'#7c3aed', bg:'rgba(124,58,237,.13)' },
+  arxiv:     { name:'arXiv',       short:'arXiv',     color:'#0891b2', bg:'rgba(8,145,178,.13)'  },
+  reddit:    { name:'Reddit',      short:'Reddit',    color:'#ff4500', bg:'rgba(255,69,0,.13)'   },
+  lobste:    { name:'Lobste.rs',   short:'Lobste.rs', color:'#ac130d', bg:'rgba(172,19,13,.13)'  },
+};
+
+/* ── Category config ────────────────────────────────────── */
+const CATS = {
+  all:      { label:'All', icon:'◉', color:'#6366f1', bg:'rgba(99,102,241,.15)' },
+  research: {
+    label:'Research', icon:'🔬', color:'#3b82f6', bg:'rgba(59,130,246,.15)',
+    kw: ['arxiv','paper','study','research','benchmark','dataset','training','finetun','fine-tun',
+         'scientific','experiment','findings','neural','transformer','diffusion','multimodal',
+         'reinforcement','rlhf','reasoning model','weights','pretraining','tokenizer','embedding']
+  },
+  policy: {
+    label:'Policy & Safety', icon:'⚖️', color:'#ef4444', bg:'rgba(239,68,68,.15)',
+    kw: ['regulation','regulatory','law','policy','ban','safety concern','risk','bias',
+         'copyright','privacy','eu ai','congress','senate','government','ethics','responsible ai',
+         'alignment','governance','rights','lawsuit','court','harmful','misinformation','deepfake',
+         'watermark','audit','liability']
+  },
+  companies: {
+    label:'Companies', icon:'🏢', color:'#f59e0b', bg:'rgba(245,158,11,.15)',
+    kw: ['funding','raises','acqui','series a','series b','ipo','valuation','layoff','hires',
+         'partnership','openai','anthropic','deepmind','google ai','meta ai','microsoft ai',
+         'nvidia','startup','billion','million','mistral','cohere','stability ai','midjourney',
+         'inflection','xai','perplexity','character.ai','runway']
+  },
+  products: {
+    label:'Products', icon:'🚀', color:'#10b981', bg:'rgba(16,185,129,.15)',
+    kw: ['launch','releases','introduces','announc','update','available','upgrade','version',
+         'subscription','premium','feature','shipping','gpt-','claude ','gemini','llama',
+         'chatgpt','copilot','sora','dall-e','midjourney','stable diffusion','whisper']
+  },
+  tools: {
+    label:'Tools & Dev', icon:'🛠️', color:'#8b5cf6', bg:'rgba(139,92,246,.15)',
+    kw: ['github','open source','open-source','library','framework','sdk','plugin',
+         'extension','developer','tutorial','guide','python','javascript','langchain',
+         'hugging face','huggingface','ollama','local model','self-host','inference',
+         'quantiz','prompt engineering','rag','retrieval','agent framework','vllm','llamafile']
+  },
+};
+
+/* ── Config ─────────────────────────────────────────────── */
+const HN_QUERIES = [
+  'artificial intelligence', 'large language model LLM',
+  'machine learning deep learning', 'ChatGPT Claude Gemini GPT',
+  'AI safety regulation', 'AI startup research',
+];
+const REFRESH_MS   = 60 * 60 * 1000;  // auto-refresh every hour
+const WINDOW_HOURS = 24;               // only last-24 h stories
+
+/* ── State ──────────────────────────────────────────────── */
+let allStories     = [];
+let activeTab      = 'all';
+let activeSource   = 'all';
+let searchQ        = '';
+let refreshTimer   = null;
+let countdownTimer = null;
+let nextRefreshAt  = null;
+
+/* ── Helpers ────────────────────────────────────────────── */
+function domain(url) {
+  if (!url) return '';
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return ''; }
+}
+function fmtTime(ts) {
+  return new Date(ts * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+function timeAgo(ts) {
+  const diff = Date.now() - ts * 1000;
+  const m = Math.floor(diff / 60000), h = Math.floor(m / 60);
+  if (h >= 1) return h + 'h ago';
+  if (m >= 1) return m + 'm ago';
+  return 'just now';
+}
+function fmtCountdown(ms) {
+  if (ms <= 0) return 'now';
+  const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function sinceTs() { return Math.floor(Date.now() / 1000) - WINDOW_HOURS * 3600; }
+function categorize(s) {
+  const t = ((s.title||'') + ' ' + (s.url||'')).toLowerCase();
+  for (const k of ['policy','research','tools','companies','products'])
+    if (CATS[k].kw.some(kw => t.includes(kw))) return k;
+  return 'products';
+}
+
+/* ── Source fetchers ────────────────────────────────────── */
+async function fetchHN(since) {
+  const results = await Promise.all(HN_QUERIES.map(q =>
+    fetch(`https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=50&numericFilters=created_at_i>${since}`)
+      .then(r => r.ok ? r.json() : {hits:[]}).catch(() => ({hits:[]}))
+  ));
+  const seen = new Set();
+  return results.flatMap(r => r.hits||[]).filter(h => {
+    if (!h.title || h.created_at_i < since || seen.has(h.objectID)) return false;
+    seen.add(h.objectID); return true;
+  }).map(h => ({
+    id: 'hn_' + h.objectID, title: h.title,
+    url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+    discussionUrl: `https://news.ycombinator.com/item?id=${h.objectID}`,
+    sourceKey: 'hn', points: h.points||0, comments: h.num_comments||0,
+    created_at_i: h.created_at_i, author: h.author||'',
+  }));
+}
+
+async function fetchDevTo(since) {
+  const tags = ['artificial-intelligence','machinelearning','llm'];
+  const results = await Promise.all(tags.map(tag =>
+    fetch(`https://dev.to/api/articles?tag=${tag}&per_page=30&state=fresh`)
+      .then(r => r.ok ? r.json() : []).catch(() => [])
+  ));
+  const seen = new Set();
+  return results.flat().filter(a => {
+    const ts = Math.floor(new Date(a.published_at).getTime() / 1000);
+    if (ts < since || seen.has(a.id)) return false;
+    seen.add(a.id); return true;
+  }).map(a => ({
+    id: 'devto_' + a.id, title: a.title, url: a.url, discussionUrl: a.url,
+    sourceKey: 'devto', points: a.positive_reactions_count||0,
+    comments: a.comments_count||0,
+    created_at_i: Math.floor(new Date(a.published_at).getTime() / 1000),
+    author: a.user?.name||'',
+  }));
+}
+
+// Try multiple CORS proxies in sequence (the first one that works wins).
+// export.arxiv.org sends no CORS headers, so a proxy is required from the browser.
+async function fetchThroughProxy(url) {
+  const proxies = [
+    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  ];
+  for (const build of proxies) {
+    try {
+      const r = await fetch(build(url));
+      if (!r.ok) continue;
+      const text = await r.text();
+      if (text && text.length > 200 && text.includes('<')) return text;
+    } catch (e) { /* try next */ }
+  }
+  console.warn('[arXiv] all CORS proxies failed');
+  return '';
+}
+
+async function fetchArxiv(since) {
+  // arXiv publishes once per day in batches — use a 48 h window so we always
+  // catch the latest batch regardless of what time of day it is.
+  const arxivSince = since - 24 * 3600;
+  const q = 'cat:cs.AI OR cat:cs.LG OR cat:cs.CL OR cat:cs.CV';
+  const arxivUrl = `http://export.arxiv.org/api/query?search_query=${encodeURIComponent(q)}&sortBy=submittedDate&sortOrder=descending&max_results=50`;
+
+  const text = await fetchThroughProxy(arxivUrl);
+  if (!text) return [];
+
+  const xml = new DOMParser().parseFromString(text, 'application/xml');
+  if (xml.querySelector('parsererror')) {
+    console.warn('[arXiv] XML parse error');
+    return [];
+  }
+
+  // Use getElementsByTagName — works reliably with the Atom default namespace.
+  const entries = [...xml.getElementsByTagName('entry')];
+  console.log(`[arXiv] got ${entries.length} entries from feed`);
+
+  const out = entries.map(e => {
+    const getText = name => e.getElementsByTagName(name)[0]?.textContent || '';
+    const ts = Math.floor(new Date(getText('published')).getTime() / 1000);
+    if (!ts || ts < arxivSince) return null;
+    const idUrl = getText('id').trim();
+    const title = getText('title').replace(/\s+/g, ' ').trim();
+    const authorEls = [...e.getElementsByTagName('author')].slice(0, 3);
+    const authors = authorEls
+      .map(a => a.getElementsByTagName('name')[0]?.textContent || '')
+      .filter(Boolean).join(', ');
+    return {
+      id: 'arxiv_' + idUrl.split('/').pop(),
+      title, url: idUrl, discussionUrl: idUrl,
+      sourceKey: 'arxiv', points: 0, comments: 0,
+      created_at_i: ts, author: authors,
+    };
+  }).filter(Boolean);
+
+  console.log(`[arXiv] ${out.length} papers within 48 h window`);
+  return out;
+}
+
+async function fetchReddit(since) {
+  const subs = ['MachineLearning','artificial','LocalLLaMA'];
+  const results = await Promise.all(subs.map(sub =>
+    fetch(`https://www.reddit.com/r/${sub}/new.json?limit=30&raw_json=1`)
+      .then(r => r.ok ? r.json() : {data:{children:[]}}).catch(() => ({data:{children:[]}}))
+  ));
+  const seen = new Set();
+  return results.flatMap(r => (r.data?.children||[]).map(c=>c.data))
+    .filter(p => {
+      if (!p?.title || p.stickied) return false;
+      const ts = Math.floor(p.created_utc);
+      if (ts < since || seen.has(p.id)) return false;
+      seen.add(p.id); return true;
+    }).map(p => ({
+      id: 'reddit_'+p.id, title: p.title,
+      url: (p.is_self || !p.url?.startsWith('http')) ? `https://reddit.com${p.permalink}` : p.url,
+      discussionUrl: `https://reddit.com${p.permalink}`,
+      sourceKey: 'reddit', points: p.score||0, comments: p.num_comments||0,
+      created_at_i: Math.floor(p.created_utc), author: 'u/'+(p.author||''),
+    }));
+}
+
+// Only includes articles from https://www.anthropic.com/research.
+// Strategy: HN Algolia URL-restricted search for stories linking to that path.
+// Window is widened to 14 days because Anthropic publishes research weekly,
+// not daily — a 24 h filter would leave the tab empty most days.
+async function fetchAnthropic(since) {
+  const anthSince = since - 13 * 86400; // 14-day window total
+  const qUrl = encodeURIComponent('anthropic.com/research');
+  const hnRes = await fetch(
+    `https://hn.algolia.com/api/v1/search_by_date` +
+    `?query=${qUrl}&restrictSearchableAttributes=url` +
+    `&tags=story&hitsPerPage=50&numericFilters=created_at_i>${anthSince}`
+  ).then(r => r.ok ? r.json() : {hits:[]}).catch(() => ({hits:[]}));
+
+  const out = [];
+  const seen = new Set();
+  for (const h of (hnRes.hits || [])) {
+    if (!h.title || h.created_at_i < anthSince) continue;
+    // Post-filter: URL must actually be on anthropic.com/research
+    // (Algolia's url-restricted search is a fuzzy match, not exact-path.)
+    if (!h.url || !/(^|\/\/)([^/]*\.)?anthropic\.com\/research(\/|$)/i.test(h.url)) continue;
+    if (seen.has(h.objectID)) continue;
+    seen.add(h.objectID);
+    out.push({
+      id: 'anth_' + h.objectID,
+      title: h.title,
+      url: h.url,
+      discussionUrl: `https://news.ycombinator.com/item?id=${h.objectID}`,
+      sourceKey: 'anthropic',
+      points: h.points || 0, comments: h.num_comments || 0,
+      created_at_i: h.created_at_i, author: h.author || '',
+    });
+  }
+
+  console.log(`[Anthropic] ${out.length} research articles in last 14 days`);
+  return out;
+}
+
+// Surfaces AI-related x.com / twitter.com posts via HN Algolia URL search.
+// (X killed its free API in 2023, so HN-amplified tweets are the most
+// reliable way to gather notable AI tweets from the browser.)
+const X_AI_RE = /\b(ai|llm|gpt|claude|gemini|chatgpt|openai|anthropic|deepmind|grok|xai|machine learning|neural net|agent|reasoning|transformer|sora|midjourney|stable diffusion|llama|mistral|model)\b/i;
+async function fetchX(since) {
+  const xSince = since - 24 * 3600; // 48 h window
+  const queries = ['x.com', 'twitter.com'];
+  const results = await Promise.all(queries.map(q =>
+    fetch(`https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(q)}&restrictSearchableAttributes=url&tags=story&hitsPerPage=50&numericFilters=created_at_i>${xSince}`)
+      .then(r => r.ok ? r.json() : {hits:[]}).catch(() => ({hits:[]}))
+  ));
+
+  const out = [];
+  const seen = new Set();
+  for (const h of results.flatMap(r => r.hits || [])) {
+    if (!h.title || h.created_at_i < xSince || seen.has(h.objectID)) continue;
+    // Confirm URL is on x.com / twitter.com (Algolia's url search is fuzzy).
+    if (!h.url || !/(^|\/\/)([^/]*\.)?(x|twitter)\.com\//i.test(h.url)) continue;
+    // AI-keyword gate so we don't pull random non-AI tweets that HN surfaced.
+    if (!X_AI_RE.test(h.title)) continue;
+    seen.add(h.objectID);
+    out.push({
+      id: 'x_' + h.objectID,
+      title: h.title,
+      url: h.url,
+      discussionUrl: `https://news.ycombinator.com/item?id=${h.objectID}`,
+      sourceKey: 'xcom',
+      points: h.points || 0, comments: h.num_comments || 0,
+      created_at_i: h.created_at_i, author: h.author || '',
+    });
+  }
+  console.log(`[X] ${out.length} AI tweets in last 48 h`);
+  return out;
+}
+
+async function fetchLobsters(since) {
+  const tags = ['ai','ml'];
+  const results = await Promise.all(tags.map(tag =>
+    fetch(`https://lobste.rs/t/${tag}.json`)
+      .then(r => r.ok ? r.json() : []).catch(() => [])
+  ));
+  const seen = new Set();
+  return results.flat().filter(s => {
+    const ts = Math.floor(new Date(s.created_at).getTime()/1000);
+    if (ts < since || seen.has(s.short_id)) return false;
+    seen.add(s.short_id); return true;
+  }).map(s => ({
+    id: 'lobste_'+s.short_id, title: s.title,
+    url: s.url || `https://lobste.rs/s/${s.short_id}`,
+    discussionUrl: `https://lobste.rs/s/${s.short_id}`,
+    sourceKey: 'lobste', points: s.score||0, comments: s.comment_count||0,
+    created_at_i: Math.floor(new Date(s.created_at).getTime()/1000),
+    author: s.submitter_user?.username||'',
+  }));
+}
+
+/* ── Countdown ──────────────────────────────────────────── */
+function startCountdown() {
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    const el = document.getElementById('countdownVal');
+    if (!el || !nextRefreshAt) return;
+    const rem = nextRefreshAt - Date.now();
+    el.textContent = fmtCountdown(rem);
+    if (rem <= 0) clearInterval(countdownTimer);
+  }, 1000);
+}
+
+/* ── Skeleton ───────────────────────────────────────────── */
+function renderSkeletons(n = 12) {
+  document.getElementById('newsGrid').innerHTML = Array.from({length:n}).map(() => `
+    <div class="skel-card">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <div style="display:flex;gap:5px">
+          <div class="skel" style="height:20px;width:78px;border-radius:100px"></div>
+          <div class="skel" style="height:20px;width:52px;border-radius:100px"></div>
+        </div>
+        <div class="skel" style="height:11px;width:44px"></div>
+      </div>
+      <div class="skel" style="height:15px;width:100%"></div>
+      <div class="skel" style="height:15px;width:80%"></div>
+      <div class="skel" style="height:13px;width:48%"></div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <div class="skel" style="height:11px;width:48px"></div>
+        <div class="skel" style="height:11px;width:36px"></div>
+      </div>
+    </div>`).join('');
+  document.getElementById('trendingSection').style.display = 'none';
+}
+
+/* ── Trending ───────────────────────────────────────────── */
+function renderTrending(stories) {
+  const top3 = [...stories].sort((a,b)=>(b.points||0)-(a.points||0)).slice(0,3);
+  const sec  = document.getElementById('trendingSection');
+  if (!top3.length) { sec.style.display='none'; return; }
+  const labels = ['#1 Top Story','#2 Trending','#3 Rising'];
+  document.getElementById('trendingGrid').innerHTML = top3.map((s,i) => {
+    const cat = CATS[s._cat]||CATS.products, src = SOURCES[s.sourceKey]||SOURCES.hn;
+    return `
+      <a class="trend-card" href="${esc(s.url)}" target="_blank" rel="noopener">
+        <div class="trend-rank">${labels[i]}</div>
+        <div class="trend-title">${esc(s.title)}</div>
+        <div class="trend-meta">
+          <span style="color:${cat.color}">${cat.icon} ${cat.label}</span>
+          <span style="color:${src.color}">${src.short}</span>
+          <span>▲ ${s.points}</span>
+          <span>${timeAgo(s.created_at_i)}</span>
+        </div>
+      </a>`;
+  }).join('');
+  sec.style.display = 'block';
+}
+
+/* ── Grid ───────────────────────────────────────────────── */
+function renderGrid(stories) {
+  const grid = document.getElementById('newsGrid'), label = document.getElementById('gridLabel');
+  if (!stories.length) {
+    grid.innerHTML = `<div class="center-msg" style="grid-column:1/-1">
+      <h3>No stories found</h3><p>Try a different filter or search term.</p></div>`;
+    label.textContent = 'Stories'; return;
+  }
+  label.textContent = `${stories.length} Stor${stories.length===1?'y':'ies'} · Last 24 hours`;
+  grid.innerHTML = stories.map(s => {
+    const cat = CATS[s._cat]||CATS.products, src = SOURCES[s.sourceKey]||SOURCES.hn;
+    const dom = domain(s.url);
+    const hasDiscussion = s.discussionUrl && s.discussionUrl !== s.url;
+    return `
+      <a class="news-card" href="${esc(s.url)}" target="_blank" rel="noopener">
+        <div class="card-top">
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            <span class="badge" style="background:${cat.bg};color:${cat.color}">${cat.icon} ${cat.label}</span>
+            <span class="badge" style="background:${src.bg};color:${src.color}">${src.short}</span>
+          </div>
+          <span style="font-size:11px;color:var(--muted);white-space:nowrap" title="${fmtTime(s.created_at_i)}">${timeAgo(s.created_at_i)}</span>
+        </div>
+        <div class="card-title">${esc(s.title)}</div>
+        <div class="card-foot">
+          ${dom ? `<span class="card-foot-item domain">${dom}</span><span style="color:var(--card-border)">·</span>` : ''}
+          <span class="card-foot-item">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+            ${s.points}
+          </span>
+          <span class="card-foot-item">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            ${s.comments}
+          </span>
+          ${hasDiscussion ? `<a href="${esc(s.discussionUrl)}" target="_blank" rel="noopener"
+            onclick="event.stopPropagation()"
+            style="margin-left:auto;font-size:11px;color:var(--muted);text-decoration:none;transition:color .15s"
+            onmouseover="this.style.color='#6366f1'" onmouseout="this.style.color=''">Discuss ↗</a>` : ''}
+        </div>
+      </a>`;
+  }).join('');
+}
+
+/* ── Category tabs ──────────────────────────────────────── */
+function renderTabs() {
+  const counts = Object.fromEntries(Object.keys(CATS).map(k=>[k,0]));
+  counts.all = allStories.length;
+  for (const s of allStories) counts[s._cat] = (counts[s._cat]||0)+1;
+  const tabEl = document.getElementById('tabs');
+  tabEl.innerHTML = Object.entries(CATS).map(([k,c]) =>
+    `<button class="tab ${activeTab===k?'active':''}" data-key="${k}">${c.icon||''} ${c.label}<span class="tab-n">${counts[k]||0}</span></button>`
+  ).join('');
+  tabEl.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+    activeTab = btn.dataset.key;
+    tabEl.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b===btn));
+    applyFilters();
+  }));
+}
+
+/* ── Source filter chips ────────────────────────────────── */
+function renderSourceChips(counts) {
+  const wrap = document.getElementById('sourceChips');
+  wrap.innerHTML = Object.entries(SOURCES).map(([k, src]) => {
+    if (!counts[k]) return '';
+    const active = activeSource === k;
+    return `<button class="src-chip ${active?'active':''}" data-sk="${k}"
+      style="${active?`background:${src.bg};border-color:${src.color};color:${src.color}`:''}">
+      <span class="src-dot" style="background:${src.color}"></span>${src.name} <span style="opacity:.6">${counts[k]}</span>
+    </button>`;
+  }).join('');
+  wrap.querySelectorAll('.src-chip').forEach(btn => btn.addEventListener('click', () => {
+    activeSource = activeSource === btn.dataset.sk ? 'all' : btn.dataset.sk;
+    renderSourceChips(counts);
+    applyFilters();
+  }));
+}
+
+/* ── Meta row ───────────────────────────────────────────── */
+function renderMeta(stories, counts) {
+  const dateStr = new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+  const oldest  = stories.length ? stories[stories.length-1].created_at_i : null;
+  const window  = oldest ? `${timeAgo(oldest)} – now` : 'Last 24 h';
+  const nSrc    = Object.values(counts).filter(Boolean).length;
+  document.getElementById('metaRow').innerHTML = `
+    <div class="meta-chip"><span class="dot"></span> Live</div>
+    <div class="meta-chip">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      ${dateStr}
+    </div>
+    <div class="meta-chip">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      ${window}
+    </div>
+    <div class="meta-chip">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M4 6h16M4 12h16M4 18h7"/></svg>
+      ${stories.length} stories · ${nSrc} source${nSrc!==1?'s':''}
+    </div>
+    <div class="meta-chip" style="margin-left:auto">
+      Next update in <span id="countdownVal" style="color:var(--text2);font-weight:600;margin-left:4px">…</span>
+    </div>`;
+}
+
+/* ── Filter ─────────────────────────────────────────────── */
+function applyFilters() {
+  let list = activeTab === 'all' ? allStories : allStories.filter(s=>s._cat===activeTab);
+  if (activeSource !== 'all') list = list.filter(s=>s.sourceKey===activeSource);
+  if (searchQ) { const q=searchQ.toLowerCase(); list=list.filter(s=>s.title.toLowerCase().includes(q)||domain(s.url).includes(q)); }
+  const showTrend = activeTab==='all' && !searchQ && activeSource==='all';
+  renderTrending(showTrend ? allStories : list);
+  renderGrid(list);
+}
+
+/* ── Main fetch ─────────────────────────────────────────── */
+async function fetchNews() {
+  clearTimeout(refreshTimer); clearInterval(countdownTimer);
+  document.getElementById('refreshBtn').classList.add('spinning');
+  renderSkeletons();
+  document.getElementById('metaRow').innerHTML =
+    `<div class="meta-chip"><span class="dot loading"></span> Fetching from 7 sources…</div>`;
+
+  const since = sinceTs();
+  // Anthropic + X go first so their URLs win the URL-based dedup over
+  // the same story surfacing from HN/Reddit's generic feeds.
+  const [antR, xR, hnR, devR, arxR, redR, lobR] = await Promise.allSettled([
+    fetchAnthropic(since), fetchX(since), fetchHN(since), fetchDevTo(since),
+    fetchArxiv(since), fetchReddit(since), fetchLobsters(since),
+  ]);
+  const ok = r => r.status==='fulfilled' ? r.value : [];
+  const raw = [...ok(antR), ...ok(xR), ...ok(hnR), ...ok(devR), ...ok(arxR), ...ok(redR), ...ok(lobR)];
+
+  // arXiv always = research; categorize the rest
+  raw.forEach(s => { s._cat = s.sourceKey==='arxiv' ? 'research' : categorize(s); });
+
+  // Deduplicate by URL
+  const seenUrls = new Set();
+  const stories = raw.filter(s => { if(!s.url||seenUrls.has(s.url)) return false; seenUrls.add(s.url); return true; });
+
+  // Newest first, points as tiebreaker
+  stories.sort((a,b) => b.created_at_i!==a.created_at_i ? b.created_at_i-a.created_at_i : (b.points||0)-(a.points||0));
+
+  allStories = stories;
+
+  const counts = Object.fromEntries(Object.keys(SOURCES).map(k=>[k,0]));
+  for (const s of stories) if (counts[s.sourceKey]!==undefined) counts[s.sourceKey]++;
+
+  renderMeta(stories, counts);
+  renderSourceChips(counts);
+  renderTabs();
+  applyFilters();
+
+  nextRefreshAt = Date.now() + REFRESH_MS;
+  refreshTimer  = setTimeout(fetchNews, REFRESH_MS);
+  startCountdown();
+
+  const nOk = [antR,xR,hnR,devR,arxR,redR,lobR].filter(r=>r.status==='fulfilled').length;
+  showToast(`${stories.length} stories · ${nOk}/7 sources OK`);
+  document.getElementById('refreshBtn').classList.remove('spinning');
+}
+
+/* ── Toast ──────────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+/* ── Events ─────────────────────────────────────────────── */
+document.getElementById('refreshBtn').addEventListener('click', fetchNews);
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const html = document.documentElement, dark = html.dataset.theme==='dark';
+  html.dataset.theme = dark ? 'light' : 'dark';
+  showToast(dark ? 'Light mode' : 'Dark mode');
+});
+document.getElementById('search').addEventListener('input', e => {
+  searchQ = e.target.value.trim(); applyFilters();
+});
+
+/* ── Boot ───────────────────────────────────────────────── */
+fetchNews();
+</script>
+</body>
+</html>
