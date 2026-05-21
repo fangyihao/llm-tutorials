@@ -29,7 +29,6 @@ from pathlib import Path
 from typing import Any
 
 import pathspec
-import tiktoken
 from openai import OpenAI, RateLimitError, APIError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -175,12 +174,9 @@ def discover_files(
 # Token counting + chunking
 # ---------------------------------------------------------------------------
 
-def count_tokens(text: str, model: str) -> int:
-    try:
-        enc = tiktoken.encoding_for_model(model)
-    except KeyError:
-        enc = tiktoken.get_encoding("cl100k_base")
-    return len(enc.encode(text, disallowed_special=()))
+def count_tokens(text: str, model: str = "") -> int:
+    # ~4 characters per token is a reliable approximation for chunking
+    return len(text) // 4
 
 
 def chunk_text(text: str, model: str, max_tokens: int) -> list[str]:
