@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-repo_harness.py — Understand a codebase thoroughly using OpenAI APIs.
+repo_harness.py — Understand a codebase thoroughly using OpenAI or Gemini APIs.
 
 Three-pass analysis:
   Pass 1 — Per-file:  purpose, key symbols, imports, complexity notes
@@ -11,6 +11,7 @@ Produces a self-contained HTML report with Mermaid dependency diagrams.
 
 Usage:
   python repo_harness.py --path /path/to/repo --output report.html
+  python repo_harness.py --path . --provider gemini --model gemini-2.0-flash
   python repo_harness.py --path . --model gpt-4o-mini --no-cache
 """
 
@@ -33,11 +34,24 @@ from openai import OpenAI, RateLimitError, APIError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
+try:
+    from google import genai as google_genai
+    from google.genai import types as google_genai_types
+    HAS_GOOGLE_GENAI = True
+except ImportError:
+    HAS_GOOGLE_GENAI = False
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_MODEL = "gpt-4o"
+PROVIDER_OPENAI = "openai"
+PROVIDER_GEMINI = "gemini"
+
+DEFAULT_MODELS = {
+    PROVIDER_OPENAI: "gpt-4o",
+    PROVIDER_GEMINI: "gemini-2.0-flash",
+}
 MAX_FILE_TOKENS = 6_000        # tokens sent per file in Pass 1
 MAX_CHUNK_TOKENS = 4_000       # fallback chunk size for oversized files
 CACHE_DIR_NAME = ".repo_harness_cache"
@@ -220,41 +234,84 @@ class Cache:
 
 
 # ---------------------------------------------------------------------------
-# OpenAI wrapper with retry
+# Provider-agnostic LLM client
 # ---------------------------------------------------------------------------
 
-def call_openai(
-    client: OpenAI,
-    model: str,
-    system: str,
-    user: str,
-    temperature: float = 0.2,
-    max_retries: int = 4,
-) -> str:
-    delay = 2.0
-    for attempt in range(max_retries):
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                temperature=temperature,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-            )
-            return resp.choices[0].message.content or ""
-        except RateLimitError:
-            if attempt == max_retries - 1:
-                raise
-            time.sleep(delay)
-            delay *= 2
-        except APIError as e:
-            if attempt == max_retries - 1:
-                raise
-            console.print(f"[yellow]API error (retry {attempt+1}): {e}[/]")
-            time.sleep(delay)
-            delay *= 2
-    return ""
+class LLMClient:
+    """Thin wrapper around OpenAI or Gemini that exposes a single call() method."""
+
+    def __init__(self, provider: str, model: str, api_key: str, max_retries: int = 4):
+        self.provider = provider
+        self.model = model
+        self.max_retries = max_retries
+
+        if provider == PROVIDER_OPENAI:
+            self._openai = OpenAI(api_key=api_key)
+            self._gemini = None
+        elif provider == PROVIDER_GEMINI:
+            if not HAS_GOOGLE_GENAI:
+                console.print("[red]google-genai is not installed. Run: pip install google-genai[/]")
+                sys.exit(1)
+            self._openai = None
+            self._gemini = google_genai.Client(api_key=api_key)
+        else:
+            console.print(f"[red]Unknown provider: {provider!r}. Choose 'openai' or 'gemini'.[/]")
+            sys.exit(1)
+
+    def call(self, system: str, user: str, temperature: float = 0.2) -> str:
+        if self.provider == PROVIDER_OPENAI:
+            return self._call_openai(system, user, temperature)
+        return self._call_gemini(system, user, temperature)
+
+    def _call_openai(self, system: str, user: str, temperature: float) -> str:
+        delay = 2.0
+        for attempt in range(self.max_retries):
+            try:
+                resp = self._openai.chat.completions.create(
+                    model=self.model,
+                    temperature=temperature,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                )
+                return resp.choices[0].message.content or ""
+            except RateLimitError:
+                if attempt == self.max_retries - 1:
+                    raise
+                time.sleep(delay)
+                delay *= 2
+            except APIError as e:
+                if attempt == self.max_retries - 1:
+                    raise
+                console.print(f"[yellow]OpenAI API error (retry {attempt+1}): {e}[/]")
+                time.sleep(delay)
+                delay *= 2
+        return ""
+
+    def _call_gemini(self, system: str, user: str, temperature: float) -> str:
+        delay = 2.0
+        for attempt in range(self.max_retries):
+            try:
+                resp = self._gemini.models.generate_content(
+                    model=self.model,
+                    contents=user,
+                    config=google_genai_types.GenerateContentConfig(
+                        system_instruction=system,
+                        temperature=temperature,
+                    ),
+                )
+                return resp.text or ""
+            except Exception as e:
+                err = str(e)
+                is_rate_limit = "429" in err or "quota" in err.lower() or "rate" in err.lower()
+                if attempt == self.max_retries - 1:
+                    raise
+                level = "yellow" if is_rate_limit else "yellow"
+                console.print(f"[{level}]Gemini API error (retry {attempt+1}): {e}[/]")
+                time.sleep(delay)
+                delay *= 2
+        return ""
 
 
 def parse_json_response(text: str) -> dict:
@@ -299,8 +356,7 @@ File: {path}
 
 
 def analyze_file(
-    client: OpenAI,
-    model: str,
+    llm: LLMClient,
     file_path: Path,
     repo_root: Path,
     cache: Cache,
@@ -315,11 +371,11 @@ def analyze_file(
             token_count=0,
         )
 
-    token_count = count_tokens(content, model)
+    token_count = count_tokens(content, llm.model)
     chunked = token_count > MAX_FILE_TOKENS
 
     if chunked:
-        chunks = chunk_text(content, model, MAX_CHUNK_TOKENS)
+        chunks = chunk_text(content, llm.model, MAX_CHUNK_TOKENS)
         per_chunk: list[dict] = []
         for i, chunk in enumerate(chunks):
             prompt = FILE_USER_TEMPLATE.format(
@@ -329,7 +385,7 @@ def analyze_file(
             if cached:
                 per_chunk.append(cached)
                 continue
-            raw = call_openai(client, model, FILE_SYSTEM_PROMPT, prompt)
+            raw = llm.call(FILE_SYSTEM_PROMPT, prompt)
             parsed = parse_json_response(raw)
             cache.put(prompt, parsed)
             per_chunk.append(parsed)
@@ -359,7 +415,7 @@ def analyze_file(
         if cached:
             data = cached
         else:
-            raw = call_openai(client, model, FILE_SYSTEM_PROMPT, prompt)
+            raw = llm.call(FILE_SYSTEM_PROMPT, prompt)
             data = parse_json_response(raw)
             cache.put(prompt, data)
 
@@ -395,8 +451,7 @@ Files:
 
 
 def synthesize_modules(
-    client: OpenAI,
-    model: str,
+    llm: LLMClient,
     file_summaries: list[FileSummary],
     cache: Cache,
 ) -> list[ModuleSummary]:
@@ -419,7 +474,7 @@ def synthesize_modules(
         if cached:
             data = cached
         else:
-            raw = call_openai(client, model, MODULE_SYSTEM_PROMPT, prompt)
+            raw = llm.call(MODULE_SYSTEM_PROMPT, prompt)
             data = parse_json_response(raw)
             cache.put(prompt, data)
 
@@ -462,8 +517,7 @@ Modules:
 
 
 def synthesize_architecture(
-    client: OpenAI,
-    model: str,
+    llm: LLMClient,
     modules: list[ModuleSummary],
     cache: Cache,
 ) -> ArchitectureSummary:
@@ -477,7 +531,7 @@ def synthesize_architecture(
     if cached:
         data = cached
     else:
-        raw = call_openai(client, model, ARCH_SYSTEM_PROMPT, prompt)
+        raw = llm.call(ARCH_SYSTEM_PROMPT, prompt)
         data = parse_json_response(raw)
         cache.put(prompt, data)
 
@@ -877,29 +931,34 @@ def run(args: argparse.Namespace) -> None:
         console.print(f"[red]Error: {repo_root} is not a directory[/]")
         sys.exit(1)
 
-    api_key = args.api_key or os.environ.get("OPENAI_API_KEY", "")
+    provider = args.provider
+    env_var = "GEMINI_API_KEY" if provider == PROVIDER_GEMINI else "OPENAI_API_KEY"
+    cli_key = args.gemini_api_key if provider == PROVIDER_GEMINI else args.api_key
+    api_key = cli_key or os.environ.get(env_var, "")
     if not api_key:
-        console.print("[red]Error: provide --api-key or set OPENAI_API_KEY[/]")
+        console.print(f"[red]Error: provide --{'gemini-' if provider == PROVIDER_GEMINI else ''}api-key or set {env_var}[/]")
         sys.exit(1)
 
-    client = OpenAI(api_key=api_key)
+    model = args.model or DEFAULT_MODELS[provider]
+    llm = LLMClient(provider=provider, model=model, api_key=api_key)
     cache = Cache(repo_root, enabled=not args.no_cache)
     extensions = SOURCE_EXTENSIONS if not args.extensions else {
         e if e.startswith(".") else f".{e}" for e in args.extensions.split(",")
     }
 
     console.rule("[bold blue]Repo Harness[/]")
-    console.print(f"  Repo:   [cyan]{repo_root}[/]")
-    console.print(f"  Model:  [cyan]{args.model}[/]")
-    console.print(f"  Output: [cyan]{args.output}[/]")
-    console.print(f"  Cache:  [cyan]{'disabled' if args.no_cache else str(repo_root / CACHE_DIR_NAME)}[/]\n")
+    console.print(f"  Repo:     [cyan]{repo_root}[/]")
+    console.print(f"  Provider: [cyan]{provider}[/]")
+    console.print(f"  Model:    [cyan]{model}[/]")
+    console.print(f"  Output:   [cyan]{args.output}[/]")
+    console.print(f"  Cache:    [cyan]{'disabled' if args.no_cache else str(repo_root / CACHE_DIR_NAME)}[/]\n")
 
     # Discover files
     gitignore = load_gitignore(repo_root)
     files = discover_files(repo_root, extensions, gitignore, args.max_files)
     console.print(f"[green]Found {len(files)} source files[/]\n")
 
-    analysis = RepoAnalysis(repo_path=str(repo_root), model=args.model)
+    analysis = RepoAnalysis(repo_path=str(repo_root), model=f"{provider}/{model}")
 
     # Pass 1 — file analysis
     console.rule("Pass 1 — File Analysis")
@@ -914,7 +973,7 @@ def run(args: argparse.Namespace) -> None:
         for f in files:
             rel = str(f.relative_to(repo_root)).replace("\\", "/")
             progress.update(task, description=f"[dim]{rel[:60]}[/]")
-            summary = analyze_file(client, args.model, f, repo_root, cache)
+            summary = analyze_file(llm, f, repo_root, cache)
             analysis.files.append(summary)
             progress.advance(task)
 
@@ -922,14 +981,14 @@ def run(args: argparse.Namespace) -> None:
     console.rule("Pass 2 — Module Synthesis")
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         progress.add_task("Synthesizing modules...")
-        analysis.modules = synthesize_modules(client, args.model, analysis.files, cache)
+        analysis.modules = synthesize_modules(llm, analysis.files, cache)
     console.print(f"[green]Synthesized {len(analysis.modules)} module(s)[/]\n")
 
     # Pass 3 — architecture
     console.rule("Pass 3 — Architecture")
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as progress:
         progress.add_task("Building architecture overview...")
-        analysis.architecture = synthesize_architecture(client, args.model, analysis.modules, cache)
+        analysis.architecture = synthesize_architecture(llm, analysis.modules, cache)
     console.print("[green]Architecture synthesis complete[/]\n")
 
     # Generate report
@@ -955,14 +1014,26 @@ def run(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Analyze a source code repository using OpenAI and produce an HTML report.",
+        description="Analyze a source code repository using OpenAI or Gemini, and produce an HTML report.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     parser.add_argument("--path", default=".", help="Path to the repository root (default: .)")
     parser.add_argument("--output", default="repo_analysis.html", help="Output HTML file")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"OpenAI model (default: {DEFAULT_MODEL})")
+    parser.add_argument(
+        "--provider", default=PROVIDER_OPENAI,
+        choices=[PROVIDER_OPENAI, PROVIDER_GEMINI],
+        help="LLM provider to use (default: openai)",
+    )
+    parser.add_argument(
+        "--model", default="",
+        help=(
+            f"Model name. Defaults: openai={DEFAULT_MODELS[PROVIDER_OPENAI]}, "
+            f"gemini={DEFAULT_MODELS[PROVIDER_GEMINI]}"
+        ),
+    )
     parser.add_argument("--api-key", default="", help="OpenAI API key (or set OPENAI_API_KEY)")
+    parser.add_argument("--gemini-api-key", default="", help="Gemini API key (or set GEMINI_API_KEY)")
     parser.add_argument("--extensions", default="",
                         help="Comma-separated file extensions to include, e.g. py,ts,go")
     parser.add_argument("--max-files", type=int, default=500,
