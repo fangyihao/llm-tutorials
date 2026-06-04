@@ -404,6 +404,7 @@
 const SOURCES = {
   anthropic: { name:'Anthropic',   short:'Anthropic', color:'#cc785c', bg:'rgba(204,120,92,.15)' },
   openai:    { name:'OpenAI',      short:'OpenAI',    color:'#10a37f', bg:'rgba(16,163,127,.15)' },
+  google:    { name:'Google',      short:'Google',    color:'#4285f4', bg:'rgba(66,133,244,.15)' },
   xcom:      { name:'X (Twitter)', short:'X',         color:'#64748b', bg:'rgba(100,116,139,.18)' },
   hn:        { name:'HackerNews',  short:'HN',        color:'#f97316', bg:'rgba(249,115,22,.13)' },
   devto:     { name:'DEV.to',      short:'DEV.to',    color:'#7c3aed', bg:'rgba(124,58,237,.13)' },
@@ -757,6 +758,61 @@ async function fetchOpenAI(since) {
   return out;
 }
 
+// Articles/papers from research.google and deepmind.google.
+// Google publishes research at two canonical homes:
+//   - research.google/blog/<slug>   (Google Research blog)
+//   - research.google/pubs/<id>     (publications database)
+//   - deepmind.google/discover/blog/<slug>
+//   - deepmind.google/research/<slug>
+//   - deepmind.google/publications/<id>
+//   - deepmind.google/technologies/<slug>
+// blog.google is deliberately excluded — it's product/marketing announcements,
+// not research. /careers, /people, /about, /teams are filtered out too.
+async function fetchGoogle(since) {
+  const floor = Math.floor(Date.now() / 1000) - MIN_LAB_DAYS * 86400;
+  const gSince = Math.min(since, floor);
+
+  const queries = ['research.google', 'deepmind.google'];
+  const results = await Promise.all(queries.map(q =>
+    fetch(
+      `https://hn.algolia.com/api/v1/search_by_date` +
+      `?query=${encodeURIComponent(q)}&restrictSearchableAttributes=url` +
+      `&tags=story&hitsPerPage=50&numericFilters=created_at_i>${gSince}`
+    ).then(r => r.ok ? r.json() : {hits:[]}).catch(() => ({hits:[]}))
+  ));
+
+  // Accept research-equivalent paths only. Each branch requires a trailing
+  // slug (\/[a-z0-9-]+) so landing pages and index URLs don't slip through.
+  const PATH_RE = new RegExp(
+    '(^|\\/\\/)([^/]*\\.)?(' +
+      'research\\.google\\/(blog|pubs|projects)\\/[a-z0-9-]+' +
+      '|deepmind\\.google\\/(discover\\/blog|research|publications|technologies)\\/[a-z0-9-]+' +
+    ')', 'i'
+  );
+
+  const out = [];
+  const seen = new Set();
+  for (const h of results.flatMap(r => r.hits || [])) {
+    if (!h.title || h.created_at_i < gSince) continue;
+    if (!h.url || !PATH_RE.test(h.url)) continue;
+    if (seen.has(h.objectID)) continue;
+    seen.add(h.objectID);
+    out.push({
+      id: 'goog_' + h.objectID,
+      title: h.title,
+      url: h.url,
+      discussionUrl: `https://news.ycombinator.com/item?id=${h.objectID}`,
+      sourceKey: 'google',
+      points: h.points || 0, comments: h.num_comments || 0,
+      created_at_i: h.created_at_i, author: h.author || '',
+    });
+  }
+
+  const days = Math.max(MIN_LAB_DAYS, Math.round(windowHours / 24));
+  console.log(`[Google] ${out.length} research articles (research.google + deepmind.google) in last ${days} days`);
+  return out;
+}
+
 // Surfaces AI-related x.com / twitter.com posts via HN Algolia URL search.
 // (X killed its free API in 2023, so HN-amplified tweets are the most
 // reliable way to gather notable AI tweets from the browser.)
@@ -1031,17 +1087,17 @@ async function fetchNews() {
   document.getElementById('refreshBtn').classList.add('spinning');
   renderSkeletons();
   document.getElementById('metaRow').innerHTML =
-    `<div class="meta-chip"><span class="dot loading"></span> Fetching from 8 sources…</div>`;
+    `<div class="meta-chip"><span class="dot loading"></span> Fetching from 9 sources…</div>`;
 
   const since = sinceTs();
-  // Anthropic, OpenAI, and X go first so their URLs win the URL-based dedup
-  // over the same story surfacing from HN/Reddit's generic feeds.
-  const [antR, oaiR, xR, hnR, devR, arxR, redR, lobR] = await Promise.allSettled([
-    fetchAnthropic(since), fetchOpenAI(since), fetchX(since), fetchHN(since),
-    fetchDevTo(since), fetchArxiv(since), fetchReddit(since), fetchLobsters(since),
+  // Anthropic, OpenAI, Google, and X go first so their URLs win the URL-based
+  // dedup over the same story surfacing from HN/Reddit's generic feeds.
+  const [antR, oaiR, gooR, xR, hnR, devR, arxR, redR, lobR] = await Promise.allSettled([
+    fetchAnthropic(since), fetchOpenAI(since), fetchGoogle(since), fetchX(since),
+    fetchHN(since), fetchDevTo(since), fetchArxiv(since), fetchReddit(since), fetchLobsters(since),
   ]);
   const ok = r => r.status==='fulfilled' ? r.value : [];
-  const raw = [...ok(antR), ...ok(oaiR), ...ok(xR), ...ok(hnR), ...ok(devR), ...ok(arxR), ...ok(redR), ...ok(lobR)];
+  const raw = [...ok(antR), ...ok(oaiR), ...ok(gooR), ...ok(xR), ...ok(hnR), ...ok(devR), ...ok(arxR), ...ok(redR), ...ok(lobR)];
 
   // arXiv always = research; categorize the rest
   raw.forEach(s => { s._cat = s.sourceKey==='arxiv' ? 'research' : categorize(s); });
@@ -1088,8 +1144,8 @@ async function fetchNews() {
   refreshTimer  = setTimeout(fetchNews, REFRESH_MS);
   startCountdown();
 
-  const nOk = [antR,oaiR,xR,hnR,devR,arxR,redR,lobR].filter(r=>r.status==='fulfilled').length;
-  showToast(`${stories.length} stories · ${nOk}/8 sources OK`);
+  const nOk = [antR,oaiR,gooR,xR,hnR,devR,arxR,redR,lobR].filter(r=>r.status==='fulfilled').length;
+  showToast(`${stories.length} stories · ${nOk}/9 sources OK`);
   document.getElementById('refreshBtn').classList.remove('spinning');
 }
 
